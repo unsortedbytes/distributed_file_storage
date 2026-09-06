@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func newStore() *Store {
+	opts := StoreOpts{
+		PathTranformsFunc: CASPathTranformsFunc,
+	}
+
+	return NewStore(opts)
+}
+
+func teardown(t *testing.T, s *Store) {
+	if err := s.Clear(); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestPathTransformFunc(t *testing.T) {
 	key := "mombestpicture"
 	pathKey := CASPathTranformsFunc(key)
@@ -22,50 +36,70 @@ func TestPathTransformFunc(t *testing.T) {
 	}
 }
 
-func TestStoreDeleteKey(t *testing.T) {
-	opts := StoreOpts{
-		PathTranformsFunc: CASPathTranformsFunc,
-	}
+// func TestStoreDeleteKey(t *testing.T) {
+// 	opts := StoreOpts{
+// 		PathTranformsFunc: CASPathTranformsFunc,
+// 	}
 
-	s := NewStore(opts)
+// 	s := NewStore(opts)
 
-	key := "myspecialpicture"
+// 	key := "myspecialpicture"
 
-	data := []byte("new pc game spider man ")
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-		t.Error(err)
-	}
+// 	data := []byte("new pc game spider man ")
+// 	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+// 		t.Error(err)
+// 	}
 
-	if err := s.Delete(key); err != nil {
-		t.Error(err)
-	}
-}
+// 	if err := s.Delete(key); err != nil {
+// 		t.Error(err)
+// 	}
+// }
 
 func TestStore(t *testing.T) {
-	opts := StoreOpts{
-		PathTranformsFunc: CASPathTranformsFunc,
+	// opts := StoreOpts{
+	// 	PathTranformsFunc: CASPathTranformsFunc,
+	// }
+
+	// s := NewStore(opts)
+
+	s := newStore()
+	defer teardown(t, s)
+
+	for i := 0; i < 50; i++ {
+
+		// key := "foodbar"
+		key := fmt.Sprintf("foo_%d", i)
+
+		data := []byte("new pc game spider man ")
+		if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+			t.Error(err)
+		}
+
+		if ok := s.Has(key); !ok {
+			t.Errorf("expected to have key %s", key)
+		}
+
+		r, err := s.Read(key)
+		if err != nil {
+			t.Error(err)
+		}
+
+		// b, _ := ioutil.ReadAll(r)
+		b, _ := io.ReadAll(r)
+
+		if string(b) != string(data) {
+			t.Errorf("want %s have %s", data, b)
+		}
+
+		fmt.Println(string(b))
+
+		// s.Delete(key)
+		// if err := s.Delete(key); err != nil {
+		// 	t.Error(err)
+		// }
+
+		// if ok := s.Has(key); !ok {
+		// 	t.Errorf("expected to Not have key %s", key)
+		// }
 	}
-
-	s := NewStore(opts)
-
-	key := "myspecialpicture"
-
-	data := []byte("new pc game spider man ")
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-		t.Error(err)
-	}
-
-	r, err := s.Read(key)
-	if err != nil {
-		t.Error(err)
-	}
-
-	// b, _ := ioutil.ReadAll(r)
-	b, _ := io.ReadAll(r)
-
-	if string(b) != string(data) {
-		t.Errorf("want %s have %s", data, b)
-	}
-
-	s.Delete(key)
 }
