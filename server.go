@@ -7,6 +7,9 @@ import (
 	"io"
 	"log"
 	"sync"
+	"time"
+
+	// "time"
 
 	"github.com/unsortedbytes/distributed_file_storage/p2p"
 )
@@ -45,19 +48,23 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 	}
 }
 
-type Message struct{
-	From string
+type Message struct {
+	// From string
 	Payload any
+}
+
+type MessageStoreFile struct {
+	Key string
 }
 
 // type Payload struct {
 // 	Key  string
 // 	Data []byte
 // }
-type DataMessage struct{
-	Key string
-	Data []byte
-}
+// type DataMessage struct{
+// 	Key string
+// 	Data []byte
+// }
 
 // func (s *FileServer) broadcast(p *DataMessage) error {
 func (s *FileServer) broadcast(msg *Message) error {
@@ -90,36 +97,68 @@ func (s *FileServer) broadcast(msg *Message) error {
 }
 
 func (s *FileServer) StoreData(key string, r io.Reader) error {
-	// 1. Store this file to disk
-	// 2. broadcast this file to all know peers in the network
+	// // 1. Store this file to disk
+	// // 2. broadcast this file to all know peers in the network
 
-	// Making the buf and tree here before write
-	buf := new(bytes.Buffer)
-	tee := io.TeeReader(r, buf)
-
-	if err := s.store.Write(key, tee); err != nil {
-		return err
-	}
-
-	// the reader  is empty also send back to network
+	// // Making the buf and tree here before write
 	// buf := new(bytes.Buffer)
-	// _, err := io.Copy(buf, r) -> creating the issue that buf is empty
-	// if err != nil {
+	// tee := io.TeeReader(r, buf)
+
+	// if err := s.store.Write(key, tee); err != nil {
 	// 	return err
 	// }
 
-	// tee := io.TeeReader(r, buf)
+	// // the reader  is empty also send back to network
+	// // buf := new(bytes.Buffer)
+	// // _, err := io.Copy(buf, r) -> creating the issue that buf is empty
+	// // if err != nil {
+	// // 	return err
+	// // }
 
-	p := &DataMessage{
-		Key:  key,
-		Data: buf.Bytes(),
+	// // tee := io.TeeReader(r, buf)
+
+	// p := &DataMessage{
+	// 	Key:  key,
+	// 	Data: buf.Bytes(),
+	// }
+
+	// fmt.Println(buf.Bytes())
+
+	// return s.broadcast(&Message{
+	// 	From: "todo",
+	// 	Payload :p,
+	// })
+
+	buf := new(bytes.Buffer)
+
+	msg := Message{
+		// Payload: []byte("storagekey\n"),
+		Payload: MessageStoreFile{
+			Key: key,
+		},
 	}
 
-	fmt.Println(buf.Bytes())
+	if err := gob.NewEncoder(buf).Encode(msg); err != nil {
+		return err
+	}
 
-	return s.broadcast(&Message{
-		From: s.Tr
-	})
+	for _, peer := range s.peers {
+		if err := peer.Send(buf.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	time.Sleep(time.Second * 3)
+
+	payload := []byte("This Large file")
+	for _, peer := range s.peers {
+		if err := peer.Send(payload); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }
 
 func (s *FileServer) Stop() {
@@ -144,14 +183,45 @@ func (s *FileServer) loop() {
 
 	for {
 		select {
-		case msg := <-s.Transport.Consume():
+		case rpc := <-s.Transport.Consume():
 			// fmt.Println(msg)
-			var p DataMessage
-			if err := gob.NewDecoder(bytes.NewReader(msg.Payload)).Decode(&p); err != nil {
-				log.Fatal(err)
+			// var p DataMessage
+			// log.Println("rpc")
+			var msg Message
+			if err := gob.NewDecoder(bytes.NewReader(rpc.Payload)).Decode(&msg); err != nil {
+				log.Println(err)
+				return
 			}
-			fmt.Println("recv msg")
-			fmt.Printf("%+v\n", string(p.Data))
+
+			if err := s.handleMessage(rpc.From, &msg); err != nil {
+				log.Println(err)
+				return
+			}
+
+			// // fmt.Printf("recv: %s\n", string(msg.Payload.([]byte)))
+			// fmt.Printf(" payload %+v\n", msg.Payload)
+			// peer, ok := s.peers[rpc.From]
+
+			// if !ok {
+			// 	panic("peer  not found in peers map")
+			// }
+
+			// // fmt.Println(peer)
+			// b := make([]byte, 10000)
+			// if _, err := peer.Read(b); err != nil {
+			// 	panic(err)
+			// }
+			// // panic("ddddd")
+
+			// // fmt.Printf("recv: %s\n", string(msg.Payload.([]byte)))
+			// fmt.Printf("%s\n", string(b))
+
+			// peer.(*p2p.TCPPeer).Wg.Done()
+			// // fmt.Println("recv msg")
+			// // fmt.Printf("%+v\n", string(m.Data))
+			// // if err := s.handleMessage(&m); err !=nil{
+			// // 	log.Println(err)
+			// // }
 
 		case <-s.quitch:
 			return
@@ -159,8 +229,19 @@ func (s *FileServer) loop() {
 	}
 }
 
-func (s *FileServer) handleMessage(p *DataMessage) error {
+func (s *FileServer) handleMessage(from string, m *Message) error {
+	switch v := m.Payload.(type) {
+	case MessageStoreFile:
+		// fmt.Printf("recived data %+v\n", v)
+		return s.handleMessageStoreFile(from, v)
+	}
+	return nil
+}
 
+func (s *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) error {
+	fmt.Printf("recv  store file msg : %+v\n", msg)
+
+	return nil
 }
 
 func (s *FileServer) bookstrapNetwork() error {
@@ -201,3 +282,7 @@ func (s *FileServer) Start() error {
 // func (s *FileServer) Store(key string, r io.Reader) error {
 // 	return s.store.Write(key, r)
 // }
+
+func init() {
+	gob.Register(MessageStoreFile{})
+}

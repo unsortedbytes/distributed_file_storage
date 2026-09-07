@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
 // TCPPeer represents the remote node over a TCP established connection
@@ -20,12 +21,15 @@ type TCPPeer struct {
 	// if we accept and retrive a conn => outbound == false
 
 	outbound bool // dial
+	// for the loop in the server because both reed the same connection simianatinly
+	Wg *sync.WaitGroup
 }
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
 		Conn:     conn,
 		outbound: outbound,
+		Wg:       &sync.WaitGroup{},
 	}
 }
 
@@ -236,10 +240,17 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 			// continue
 			return
 		}
-		rpc.From = conn.RemoteAddr()
-		fmt.Printf("Msg : %+s\n", rpc)
+		// rpc.From = conn.RemoteAddr()
+		rpc.From = conn.RemoteAddr().String()
+
+		// sync wating so both loop doest
+		peer.Wg.Add(1)
+		fmt.Println("wating till the stream is done")
+		fmt.Printf("Msg  ********: %+s\n", rpc)
 		fmt.Printf("Message : %+v\n", rpc)
 		t.rpcch <- rpc
+		peer.Wg.Wait()
+		fmt.Println("Stream done contiinueing normal read loop")
 
 		// fmt.Printf("message: %+v\n", buf[:n])
 	}
