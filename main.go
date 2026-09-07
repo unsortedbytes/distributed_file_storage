@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/unsortedbytes/distributed_file_storage/p2p"
 )
@@ -109,6 +111,12 @@ func main() {
 		log.Fatal(s1.Start())
 	}()
 
-	s2.Start()
+	time.Sleep(3 * time.Second)
+	go s2.Start()
+	time.Sleep(3 * time.Second)
 
+	data := bytes.NewReader([]byte("my big data file here!"))
+
+	s2.StoreData("unsortedbytesprivatedata", data)
+	select {}
 }

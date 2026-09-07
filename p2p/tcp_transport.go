@@ -11,7 +11,10 @@ import (
 // TCPPeer represents the remote node over a TCP established connection
 type TCPPeer struct {
 	// conn is the underlying connection of the peer
-	conn net.Conn
+	// conn net.Conn
+	// The underlying connection of the peer. Which in this case
+	// is  a TCP connection
+	net.Conn
 
 	// if we dial and  retrive a conn => outbound == true
 	// if we accept and retrive a conn => outbound == false
@@ -21,26 +24,26 @@ type TCPPeer struct {
 
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
-		conn:     conn,
+		Conn:     conn,
 		outbound: outbound,
 	}
 }
 
 func (p *TCPPeer) Send(b []byte) error {
-	_, err := p.conn.Write(b)
+	_, err := p.Conn.Write(b)
 	return err
 }
 
 // Remote Addr implements the Peerinterface and will return  the
 // remote addresss of the underlying connection.
-func (p *TCPPeer) RemoteAddr() net.Addr {
-	return p.conn.RemoteAddr()
-}
+// func (p *TCPPeer) RemoteAddr() net.Addr {
+// 	return p.conn.RemoteAddr()
+// }
 
-// Close implements the peer interface
-func (p *TCPPeer) Close() error {
-	return p.conn.Close()
-}
+// // Close implements the peer interface
+// func (p *TCPPeer) Close() error {
+// 	return p.conn.Close()
+// }
 
 type TCPTransportOpts struct {
 	ListenAddr    string
@@ -80,6 +83,10 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 		rpcch:            make(chan RPC),
 	}
 }
+
+// func(t *TCPTransport) ListenAddr() string{
+// 	return t.ListenAddr
+// }
 
 // Consume implements the Transport interface, which will return read-only channedl
 // for reading  the incoming message  recived  from the another peer in the network
